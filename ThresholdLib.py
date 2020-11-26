@@ -127,7 +127,7 @@ class Thresholding:
 
     @staticmethod
     def threshold_pixel(threshold, pixel):
-        if(len(pixel) != 3):
+        if(len(pixel) < 3):
             return (0,0,0)
         new_pixel = [0,0,0]
         for i in range(3):
