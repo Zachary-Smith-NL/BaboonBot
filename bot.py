@@ -1,6 +1,7 @@
 import discord
 import os
 import thresholding
+import smoothing
 import tempfile
 from dotenv import load_dotenv
 
@@ -48,7 +49,7 @@ async def on_message(message):
         print("No dice")
         await message.channel.send("No image found")
         return
-
+    print("Found one")
     #If an image is found, determine what command was issued
     #Command structure will be [baboon! [Operation name] [Operation type] [param1] [param2] [paramN]]
     split_message = message.content.split(" ")
@@ -83,6 +84,16 @@ async def on_message(message):
                 await image.save(f"{tmpdirname}/{image.filename}")
                 output_file = thresholding.global_threshold(threshold, f"{tmpdirname}/{image.filename}")
                 await message.channel.send("Cripsy!", file=discord.File(output_file))
+    
+    if split_message[1] == "SMOOTH":
+        if split_message[2] == "MEAN":
+            window = 5
+            if len(split_message) - 1 >= 3:
+                window = int(split_message[3])
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                await image.save(f"{tmpdirname}/{image.filename}")
+                output_file = smoothing.mean(f"{tmpdirname}/{image.filename}", window)
+                await message.channel.send("Smoove!", file=discord.File(output_file))
 
 
 client.run(BOT_TOKEN)
