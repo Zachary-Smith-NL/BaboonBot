@@ -37,19 +37,11 @@ async def on_message(message):
     # TODO Return to change the limit variable below later on, based on experience
 
     image = None
-    window = 5
-    offset = 10
 
+    #Find a message with an image, if no image is found it will remain to be none
     async for past_message in message.channel.history(limit=15):
         if len(past_message.attachments) == 1:
             image = past_message.attachments[0]
-            split_message = message.content.split(" ")
-            if (len(split_message)) > 1:
-                window = int(split_message[1])
-                print(window)
-            if (len(split_message)) > 2:
-                offset = int(split_message[2])
-                print(offset)
             break
 
     if image is None:
@@ -57,12 +49,40 @@ async def on_message(message):
         await message.channel.send("No image found")
         return
 
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        await image.save(f"{tmpdirname}/{image.filename}")
-        output_file = thresholding.adaptive_mean_C(
-            f"{tmpdirname}/{image.filename}", window, offset
-        )
-        await message.channel.send("Cripsy!", file=discord.File(output_file))
+    #If an image is found, determine what command was issued
+    #Command structure will be [baboon! [Operation name] [Operation type] [param1] [param2] [paramN]]
+    split_message = message.content.split(" ")
+    for i in range(1, len(split_message)):
+        split_message[i] = split_message[i].upper()
+    if split_message[1] == "THRESHOLD":
+        if split_message[2] == "ADAPTIVE":
+            #Only 2 possible parameters for adaptive, window and offset
+            #Set defaults
+            window = 5
+            offset = 10
+            if len(split_message) - 1 >= 4:
+                offset = int(split_message[4])
+                window = int(split_message[3])
+            elif len(split_message) - 1 == 3:
+                window = int(split_message[3])
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                await image.save(f"{tmpdirname}/{image.filename}")
+                output_file = thresholding.adaptive_mean_C(
+                    f"{tmpdirname}/{image.filename}", window, offset
+                )
+                await message.channel.send("Cripsy!", file=discord.File(output_file))
+
+        elif split_message[2] == "GLOBAL":
+            #Determine whether it will be otsu or manual global by seeing if there is an argument
+            if len(split_message) - 1 > 2:
+                #This means a value was passed, so manual thresholding
+                threshold = int(split_message[3])
+            else:
+                threshold = None
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                await image.save(f"{tmpdirname}/{image.filename}")
+                output_file = thresholding.global_threshold(threshold, f"{tmpdirname}/{image.filename}")
+                await message.channel.send("Cripsy!", file=discord.File(output_file))
 
 
 client.run(BOT_TOKEN)

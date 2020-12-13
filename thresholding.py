@@ -1,11 +1,13 @@
 from PIL import Image
 
 
-def global_threshold(threshold=[], filename=None):
-    if filename == None or len(threshold) != 3:
-        return  # Raise an exception later
-
+def global_threshold(threshold, filename):
     image = Image.open(filename)
+    if threshold == None:
+        #Use otsu's method to obtain the threshold
+        threshold = otsu(image)
+    else:
+        threshold = [threshold, threshold, threshold]
     width = image.size[0]
     height = image.size[1]
     output_image = image.copy()
@@ -13,13 +15,45 @@ def global_threshold(threshold=[], filename=None):
     for x in range(width):
         for y in range(height):
             pixel = image.getpixel((x, y))
-            output_image.setpixel((x, y), threshold_pixel(threshold, pixel))
-    return output_image
+            output_image.putpixel((x, y), threshold_pixel(threshold, pixel))
 
+    output_image.save(filename)
+    return filename
 
-def adaptive_mean_C(filename=None, window=7, offset=10):
-    if filename == None:
-        return
+def otsu(image):
+    #Perform's otsu's method
+    #Get the histogram first
+    histogram = get_histogram(image, True)
+
+    variances = []
+    w0 = [0,0,0]
+    w1 = [0,0,0]
+    m0 = [0,0,0]
+    m1 = [0,0,0]
+    #Get initial w1, such that it can be incrementally modified later on
+    for j in range(3):
+        for p in range(len(histogram)):
+            w1[j] += histogram[p][j]
+            m1[j] += p * histogram[p][j]
+    for i in range(len(histogram)):
+        variance = [0, 0, 0]
+        for j in range(3):
+            w1[j] -= histogram[i][j]
+            m1[j] -= i * histogram[i][j]
+            w0[j] += histogram[i][j]
+            m0[j] += i * histogram[i][j]
+            variance[j] = w0[j] * w1[j] * pow(((m0[j] / w0[j]) - (m1[j] / w1[j])), 2)
+        variances.append(variance)
+    max_variances = [0,0,0]
+    threshold = [0,0,0]
+    for i in range(3):
+        for j in range(len(variances)):
+            if variances[j][i] > max_variances[i]:
+                max_variances[i] = variances[j][i]
+                threshold[i] = j
+    return threshold
+
+def adaptive_mean_C(filename, window, offset):
     image = Image.open(filename)
     width = image.size[0]
     height = image.size[1]
@@ -129,6 +163,27 @@ def adaptive_mean_C(filename=None, window=7, offset=10):
             output_image.putpixel((x, y), new_pixel)
     output_image.save(filename)
     return filename
+
+def get_histogram(image, pdf=False):
+    #By default do not get the PDF of the histogram
+    width = image.size[0]
+    height = image.size[1]
+    histogram = []
+    for x in range(width):
+        for y in range(height):
+            pixel = image.getpixel((x,y))
+            for i in range(3):
+                if len(histogram) - 1 < pixel[i]:
+                    while(len(histogram) - 1 < pixel[i]):
+                        histogram.append([0,0,0])
+                histogram[pixel[i]][i] += 1
+    if not pdf:
+        return histogram
+    #If the pdf is desired, divide each bucket by the number of the pixels in the image
+    for i in range(len(histogram)):
+        for j in range(3):
+            histogram[i][j] /= (width * height)
+    return histogram
 
 
 def threshold_pixel(threshold, pixel):
