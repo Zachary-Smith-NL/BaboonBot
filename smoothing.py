@@ -1,10 +1,10 @@
 from PIL import Image
+import math
 
 #Mean filter
-def mean(filename, window):
+def mean(image, window):
     #The mean filter is separable and iterable, and so it will be performed in two passes
     #First get the image and copy it
-    image = Image.open(filename)
     width = image.size[0]
     height = image.size[1]
     output_image = image.copy()
@@ -90,5 +90,140 @@ def mean(filename, window):
                 new_pixel[i] = int((divided + saved_pixel[i]) / 2)
             output_image.putpixel((x,y), (new_pixel[0], new_pixel[1], new_pixel[2]))
     
-    output_image.save(filename)
-    return filename
+    return output_image
+
+def triangle(image, window):
+    #Separable, so done in two passes
+    #Not iterable though
+    width = image.size[0]
+    height = image.size[1]
+    output_image = image.copy()
+
+    w = window // 2
+    kernel = []
+    counter = 1
+    for i in range(-w, w + 1):
+        if(i < 0):
+            kernel.append(counter)
+            counter += 1
+        else:
+            kernel.append(counter)
+            counter -= 1
+    kernel_sum = 0
+    for i in range(len(kernel)):
+        kernel_sum += kernel[i]
+    #Horizontal pass
+    for x in range(width):
+        for y in range(height):
+            #Create an array to store sums
+            sums = [0,0,0]
+            counter = 0
+            for u in range(-w, w + 1):
+                if y + u < 0:
+                    yCoord = 0
+                elif y + u >= height:
+                    yCoord = height - 1
+                else:
+                    yCoord = y + u
+                pixel = image.getpixel((x,yCoord))
+                for i in range(3):
+                    sums[i] += kernel[counter] * pixel[i]
+                counter += 1
+            for i in range(3):
+                sums[i] /= kernel_sum
+                sums[i] = int(sums[i])
+            output_image.putpixel((x,y), (sums[0], sums[1], sums[2]))
+    #Vertical pass
+    for y in range(height):
+        for x in range(width):
+            #Sum array
+            sums = [0,0,0]
+            counter = 0
+            for u in range(-w, w + 1):
+                if x + u < 0:
+                    xCoord = 0
+                elif x + u >= width:
+                    xCoord = width - 1
+                else:
+                    xCoord = x + u
+                pixel = image.getpixel((xCoord,y))
+                for i in range(3):
+                    sums[i] += kernel[counter] * pixel[i]
+                counter += 1
+            saved_pixel = output_image.getpixel((x,y))
+            for i in range(3):
+                sums[i] /= kernel_sum
+                sums[i] = int((sums[i] + saved_pixel[i]) / 2)
+            output_image.putpixel((x,y), (sums[0], sums[1], sums[2]))
+            return output_image
+
+#Returns a 1D DoG kernel of desired size
+def DoG(w, sigma):
+    kernel = []
+    for u in range(-w, w + 1):
+        value = (-u / (math.sqrt(2 * math.pi) * pow(sigma, 3))) * (math.exp(-pow(u, 2) / (2 * pow(sigma,2))))
+        kernel.append(value)
+    return kernel
+
+#Returns a 1D gaussian kernel of desired size
+def gaussian_kernel(w, sigma):
+    kernel = []
+    for u in range(-w, w + 1):
+        value = (1 / (math.sqrt(2 * math.pi) * sigma)) * (math.exp(-pow(u, 2) / (2 * pow(sigma,2))))
+        kernel.append(value)
+    return kernel
+
+def gaussian(image, window, sigma, derivative = False):
+    w = window // 2
+    width = image.size[0]
+    height = image.size[1]
+    output_image = image.copy()
+    #Allow selection of derivative of gaussian, or just normal gaussian
+    #Derivative will only be called internally, so default to false
+    if derivative:
+        kernel = DoG(w, sigma)
+    else:
+        kernel = gaussian_kernel(w, sigma)
+    #Storage for values, explained later
+    storage = []
+    #When using floating point calculation, it is separable, therefore do two passes
+    #Horizontal
+    for x in range(width):
+        storage.append([])
+        for y in range(height):
+            storage[x].append([0,0,0])
+            sums = [0,0,0]
+            for u in range(-w, w + 1):
+                if y + u < 0:
+                    yCoord = 0
+                elif y + u >= height:
+                    yCoord = height - 1
+                else:
+                    yCoord = y + u
+                pixel = image.getpixel((x,yCoord))
+                for i in range(3):
+                    #u + w should go from 0 -> 2 * w + 1
+                    sums[i] += kernel[u + w] * pixel[i]
+            for i in range(3):
+                #Since using floating point calculation, cannot store the values in the image
+                #Use an extra array to store these values instead
+                storage[x][y][i] = sums[i]
+    #Vertical
+    for y in range(height):
+        for x in range(width):
+            sums = [0,0,0]
+            for u in range(-w, w + 1):
+                if x + u < 0:
+                    xCoord = 0
+                elif x + u >= width:
+                    xCoord = width - 1
+                else:
+                    xCoord = x + u
+                pixel = image.getpixel((xCoord,y))
+                for i in range(3):
+                    sums[i] += kernel[u + w] * pixel[i]
+            new_pixel = [0,0,0]
+            for i in range(3):
+                new_pixel[i] = int((sums[i] + storage[x][y][i]) / 2)
+            output_image.putpixel((x,y), (new_pixel[0], new_pixel[1], new_pixel[2]))
+    return output_image

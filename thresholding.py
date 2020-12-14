@@ -1,8 +1,7 @@
 from PIL import Image
 
 
-def global_threshold(threshold, filename):
-    image = Image.open(filename)
+def global_threshold(threshold, image):
     if threshold == None:
         #Use otsu's method to obtain the threshold
         threshold = otsu(image)
@@ -17,8 +16,7 @@ def global_threshold(threshold, filename):
             pixel = image.getpixel((x, y))
             output_image.putpixel((x, y), threshold_pixel(threshold, pixel))
 
-    output_image.save(filename)
-    return filename
+    return output_image
 
 def otsu(image):
     #Perform's otsu's method
@@ -42,6 +40,10 @@ def otsu(image):
             m1[j] -= i * histogram[i][j]
             w0[j] += histogram[i][j]
             m0[j] += i * histogram[i][j]
+            if w0[j] == 0:
+                continue
+            if w1[j] == 0:
+                continue
             variance[j] = w0[j] * w1[j] * pow(((m0[j] / w0[j]) - (m1[j] / w1[j])), 2)
         variances.append(variance)
     max_variances = [0,0,0]
@@ -53,8 +55,7 @@ def otsu(image):
                 threshold[i] = j
     return threshold
 
-def adaptive_mean_C(filename, window, offset):
-    image = Image.open(filename)
+def adaptive_mean_C(image, window, offset):
     width = image.size[0]
     height = image.size[1]
     threshold = [0, 0, 0]
@@ -161,8 +162,7 @@ def adaptive_mean_C(filename, window, offset):
                 )
             new_pixel = threshold_pixel(threshold, image.getpixel((x, y)))
             output_image.putpixel((x, y), new_pixel)
-    output_image.save(filename)
-    return filename
+    return output_image
 
 def get_histogram(image, pdf=False):
     #By default do not get the PDF of the histogram
